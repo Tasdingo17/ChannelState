@@ -297,13 +297,14 @@ int PingStat::get_srtt() const{
     return srtt;
 }
 
+// percentage
 double PingStat::get_loss() const{
-    return 1.* lost / total; 
+    return 100.* lost / total; 
 }
 
 void PingStat::print_statistics() const{
     fprintf(stdout, "Ping statistics:\n");
-    fprintf(stdout, "Total packets: %d, lost packets: %d, loss percentage: %.3f\n",
+    fprintf(stdout, "Total packets: %d, lost packets: %d, loss percentage: %.3f %%\n",
             total, lost, get_loss());
     fprintf(stdout, "sRTT: %.3f ms, jitter: %.3f ms\n", srtt / 1000., jitter / 1000.);
 }
