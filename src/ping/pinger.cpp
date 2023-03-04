@@ -50,7 +50,7 @@ Pinger::Pinger(const char* _hostname, int _ping_gap, int _ping_timeout):
     resolve_addr(_hostname, &addrinfo_list);
     make_socket(addrinfo_list);
     clear_addrinfo(addrinfo_list);
-    print_host_ip();
+    print_host();
 }
 
 
@@ -210,27 +210,33 @@ PingRes Pinger::ping(int seq, int id){
     return PingRes(delay, bad_checksum);
 }
 
+namespace ping_handler{
+    bool stop_ping = false;
+}
+
+void stop_ping(int signo){
+    ping_handler::stop_ping = true;
+}
+
 void Pinger::ping_continuously(){
     PingRes tmp_res;
-    int lost=0, jitter=0, mean=0;   
+    PingStat stats;
+    ping_handler::stop_ping = false;
     uint16_t id = (uint16_t)getpid();
-    for (int seq = 0; ; seq++) {
+    auto prev_handler = signal(SIGINT, stop_ping);  // break from loop after sigint
+    for (unsigned seq = 0; !ping_handler::stop_ping; seq++) {
         tmp_res = ping(seq, id);
-        if (tmp_res.rtt == -1){
-            lost += 1;
-            printf("Request seq=%d lost\n", seq);
-        } else if (tmp_res.bad_checksum){
-            printf("Request seq=%d bad checksum\n", seq);
-        } else {
-            printf("Request seq=%d rtt=%.3f ms\n", seq, tmp_res.rtt / 1000.0);
-        }
+        stats.process_ping_res(tmp_res, seq);
         if ((0 <= tmp_res.rtt) && (tmp_res.rtt < ping_gap)){
             usleep(ping_gap - tmp_res.rtt);
         }
     }
+    stats.print_statistics();
+    signal(SIGINT, prev_handler);   // return default handler
 }
 
-void Pinger::print_host_ip() const{
+
+void Pinger::print_host() const{
     char addr_str[56] = "<unknown>"; // 56 is ipv6 lenght
     inet_ntop(addr.ss_family,
               addr.ss_family == AF_INET6
@@ -242,4 +248,62 @@ void Pinger::print_host_ip() const{
     printf("PING %s (%s)\n", hostname.c_str(), addr_str);
 }
 
+/////////////////// PingRes
 PingRes::PingRes(int _rtt, bool _checksum): rtt(_rtt), bad_checksum(_checksum) {};
+
+
+/////////////////// PingStat
+PingStat::PingStat(): srtt(0), jitter(0), lost(0), total(0), curr_rtt(0), prev_rtt(0) {};
+
+void PingStat::process_ping_res(const PingRes& res, int seq){
+    total += 1;
+    if (res.rtt == -1){
+        lost += 1;
+        printf("Request seq=%d lost\n", seq);
+        return;
+    } else if (res.bad_checksum){
+        lost += 1;
+        printf("Request seq=%d bad checksum\n", seq);
+        return;
+    }
+    printf("Request seq=%d rtt=%.3f ms\n", seq, res.rtt / 1000.0);
+    prev_rtt = curr_rtt;
+    curr_rtt = res.rtt;
+    update_jitter();
+    update_srtt();
+}
+
+/* https://datatracker.ietf.org/doc/html/rfc1889#page-71 */
+void PingStat::update_jitter(){
+    int diff = curr_rtt - prev_rtt;
+    if (diff < 0) diff = -diff;
+    jitter += (int) ((diff - jitter) * 1./16.);
+}
+
+void PingStat::update_srtt(){
+    double ALPHA = 0.9;
+    if (srtt == 0){
+        srtt = curr_rtt;
+        return;
+    }
+    srtt = (int) (ALPHA * srtt + (1-ALPHA) * curr_rtt);
+}
+
+int PingStat::get_jitter() const{
+    return jitter;
+}
+
+int PingStat::get_srtt() const{
+    return srtt;
+}
+
+double PingStat::get_loss() const{
+    return 1.* lost / total; 
+}
+
+void PingStat::print_statistics() const{
+    fprintf(stdout, "Ping statistics:\n");
+    fprintf(stdout, "Total packets: %d, lost packets: %d, loss percentage: %.3f\n",
+            total, lost, get_loss());
+    fprintf(stdout, "sRTT: %.3f ms, jitter: %.3f ms\n", srtt / 1000., jitter / 1000.);
+}

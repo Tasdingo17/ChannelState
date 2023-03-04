@@ -21,6 +21,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <string>
+#include <csignal>
 
 // in microseconds
 #define DEFAULT_PING_GAP 1000000
@@ -41,11 +42,32 @@ typedef struct msghdr msghdr_t;
 typedef struct cmsghdr cmsghdr_t;
 
 
-struct PingRes {
+class PingRes {
 public:
     int rtt; // microseconds
     bool bad_checksum;
     PingRes(int _rtt=-1, bool _checksum=false);
+};
+
+
+class PingStat{
+public:
+    PingStat();
+    void process_ping_res(const PingRes& res, int seq);
+    void print_statistics() const;
+    int get_srtt() const;
+    int get_jitter() const;
+    double get_loss() const;
+private:
+    int srtt;   // smoothed_rtt
+    int jitter;
+    int lost;
+    int total;
+
+    int curr_rtt;
+    int prev_rtt;
+    void update_jitter();
+    void update_srtt();
 };
 
 
@@ -63,7 +85,7 @@ public:
     void ping_continuously();
     int get_ping_gap() const;
     std::string get_hostname() const;
-    void print_host_ip() const;
+    void print_host() const;
 private:
     std::string hostname;
     int ping_gap;
