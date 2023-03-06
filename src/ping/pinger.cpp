@@ -43,8 +43,8 @@ static uint16_t compute_checksum(const char *buf, size_t size) {
 }
 
 
-Pinger::Pinger(const char* _hostname, int _ping_gap, int _ping_timeout): 
-    hostname(_hostname), ping_gap(_ping_gap), ping_timeout(_ping_timeout)
+Pinger::Pinger(const char* _hostname, int _ping_timeout): 
+    hostname(_hostname), ping_timeout(_ping_timeout)
 {
     struct addrinfo* addrinfo_list;
     resolve_addr(_hostname, &addrinfo_list);
@@ -58,10 +58,6 @@ std::string Pinger::get_hostname() const{
     return hostname;
 }
 
-
-int Pinger::get_ping_gap() const{
-    return ping_gap;
-}
 
 
 Pinger::~Pinger(){
@@ -210,30 +206,7 @@ PingRes Pinger::ping(int seq, int id){
     return PingRes(delay, bad_checksum);
 }
 
-namespace ping_handler{
-    bool stop_ping = false;
-}
 
-void stop_ping(int signo){
-    ping_handler::stop_ping = true;
-}
-
-void Pinger::ping_continuously(){
-    PingRes tmp_res;
-    PingStat stats;
-    ping_handler::stop_ping = false;
-    uint16_t id = (uint16_t)getpid();
-    auto prev_handler = signal(SIGINT, stop_ping);  // break from loop after sigint
-    for (unsigned seq = 0; !ping_handler::stop_ping; seq++) {
-        tmp_res = ping(seq, id);
-        stats.process_ping_res(tmp_res, seq);
-        if ((0 <= tmp_res.rtt) && (tmp_res.rtt < ping_gap)){
-            usleep(ping_gap - tmp_res.rtt);
-        }
-    }
-    stats.print_statistics();
-    signal(SIGINT, prev_handler);   // return default handler
-}
 
 
 void Pinger::print_host() const{
@@ -307,4 +280,38 @@ void PingStat::print_statistics() const{
     fprintf(stdout, "Total packets: %d, lost packets: %d, loss percentage: %.3f %%\n",
             total, lost, get_loss());
     fprintf(stdout, "sRTT: %.3f ms, jitter: %.3f ms\n", srtt / 1000., jitter / 1000.);
+}
+
+// ContinuosPinger
+ContinuosPinger::ContinuosPinger(const char* _hostname, int _ping_gap, int _ping_timeout):
+Pinger(_hostname, _ping_timeout), ping_gap(_ping_gap) {};
+
+namespace ping_handler{
+    bool ping_stopped = false;
+
+    void stop_ping(int signo){
+        ping_stopped = true;
+    }
+}
+
+
+void ContinuosPinger::ping_continuously(){
+    PingRes tmp_res;
+    PingStat stats;
+    ping_handler::ping_stopped = false;
+    uint16_t id = (uint16_t)getpid();
+    auto prev_handler = signal(SIGINT, ping_handler::stop_ping);  // break from loop after sigint
+    for (unsigned seq = 0; !ping_handler::ping_stopped; seq++) {
+        tmp_res = ping(seq, id);
+        stats.process_ping_res(tmp_res, seq);
+        if ((0 <= tmp_res.rtt) && (tmp_res.rtt < ping_gap)){
+            usleep(ping_gap - tmp_res.rtt);
+        }
+    }
+    stats.print_statistics();
+    signal(SIGINT, prev_handler);   // return default handler
+}
+
+int ContinuosPinger::get_ping_gap() const{
+    return ping_gap;
 }

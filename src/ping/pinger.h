@@ -73,7 +73,7 @@ private:
 
 class Pinger{
 public:
-    explicit Pinger(const char* _hostname, int _ping_gap=DEFAULT_PING_GAP,
+    explicit Pinger(const char* _hostname,
                     int _ping_timeout=DEFAULT_PING_TIMEOUT);
     Pinger(const Pinger& other) = delete;
     Pinger& operator=(const Pinger& other) = delete;
@@ -82,13 +82,10 @@ public:
     ~Pinger();
 
     PingRes ping(int seq=0, int id=-1);     // return rtt in microseconds
-    void ping_continuously();
-    int get_ping_gap() const;
     std::string get_hostname() const;
     void print_host() const;
 private:
     std::string hostname;
-    int ping_gap;
     int ping_timeout;   // after that packet is considered lost
 
     socket_t sockfd;
@@ -96,6 +93,17 @@ private:
     socklen_t dst_addr_len;
     void make_socket(struct addrinfo* addrinfo_list);
     void set_addr(struct addrinfo* adrrinfo);
+};
+
+
+class ContinuosPinger: public Pinger{
+public:
+    explicit ContinuosPinger(const char* _hostname, int _ping_gap=DEFAULT_PING_GAP,
+                             int _ping_timeout=DEFAULT_PING_TIMEOUT);
+    void ping_continuously();
+    int get_ping_gap() const;
+private:
+    int ping_gap;
 };
 
 
