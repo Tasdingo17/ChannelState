@@ -14,7 +14,14 @@ TODO
 
 ## Build
 
-TODO
+cmake required
+
+```
+mkdir build
+cd build
+cmake -S ../ -B .
+make
+```
 
 ## Run
 
