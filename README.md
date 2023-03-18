@@ -10,7 +10,7 @@ By 'channel state' we assume:
 
 ## Prerequisites
 
-TODO
+git submodule init?
 
 ## Build
 
