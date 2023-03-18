@@ -54,10 +54,29 @@ Pinger::Pinger(const char* _hostname, int _ping_timeout):
 }
 
 
+Pinger::Pinger(Pinger&& other){
+    hostname = std::move(other.hostname);
+    ping_timeout = std::move(other.ping_timeout);
+    sockfd = other.sockfd;
+    other.sockfd = 0;
+    addr = std::move(other.addr);    
+    dst_addr_len = std::move(other.dst_addr_len);
+}
+
+Pinger& Pinger::operator=(Pinger&& other){
+    hostname = std::move(other.hostname);
+    ping_timeout = std::move(other.ping_timeout);
+    sockfd = other.sockfd;
+    other.sockfd = 0;
+    addr = std::move(other.addr);    
+    dst_addr_len = std::move(other.dst_addr_len);
+    return *this;
+}
+
+
 std::string Pinger::get_hostname() const{
     return hostname;
 }
-
 
 
 Pinger::~Pinger(){
@@ -207,8 +226,6 @@ PingRes Pinger::ping(int seq, int id){
 }
 
 
-
-
 void Pinger::print_host() const{
     char addr_str[56] = "<unknown>"; // 56 is ipv6 lenght
     inet_ntop(addr.ss_family,
@@ -221,6 +238,11 @@ void Pinger::print_host() const{
     printf("PING %s (%s)\n", hostname.c_str(), addr_str);
 }
 
+
+std::unique_ptr<Pinger> Pinger::to_unique_ptr(){
+    return std::make_unique<Pinger>(std::move(*this));
+}
+
 /////////////////// PingRes
 PingRes::PingRes(int _rtt, bool _checksum): rtt(_rtt), bad_checksum(_checksum) {};
 
@@ -228,18 +250,21 @@ PingRes::PingRes(int _rtt, bool _checksum): rtt(_rtt), bad_checksum(_checksum) {
 /////////////////// PingStat
 PingStat::PingStat(): srtt(0), jitter(0), lost(0), total(0), curr_rtt(0), prev_rtt(0) {};
 
-void PingStat::process_ping_res(const PingRes& res, int seq){
+void PingStat::process_ping_res(const PingRes& res, int seq=-1, bool verbose){
     total += 1;
     if (res.rtt == -1){
         lost += 1;
-        printf("Request seq=%d lost\n", seq);
+        if (verbose)
+            printf("Request seq=%d lost\n", seq);
         return;
     } else if (res.bad_checksum){
         lost += 1;
-        printf("Request seq=%d bad checksum\n", seq);
+        if (verbose)
+            printf("Request seq=%d bad checksum\n", seq);
         return;
     }
-    printf("Request seq=%d rtt=%.3f ms\n", seq, res.rtt / 1000.0);
+    if (verbose)
+        printf("Request seq=%d rtt=%.3f ms\n", seq, res.rtt / 1000.0);
     prev_rtt = curr_rtt;
     curr_rtt = res.rtt;
     update_jitter();
@@ -273,6 +298,10 @@ int PingStat::get_srtt() const{
 // percentage
 double PingStat::get_loss() const{
     return 100.* lost / total; 
+}
+
+int PingStat::get_last_rtt() const{
+    return curr_rtt;
 }
 
 void PingStat::print_statistics() const{
@@ -314,4 +343,9 @@ void ContinuosPinger::ping_continuously(){
 
 int ContinuosPinger::get_ping_gap() const{
     return ping_gap;
+}
+
+
+std::unique_ptr<Pinger> ContinuosPinger::to_unique_ptr(){
+    return std::make_unique<ContinuosPinger>(std::move(*this));
 }

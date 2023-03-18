@@ -22,13 +22,14 @@
 #include <sys/types.h>
 #include <string>
 #include <csignal>
+#include <memory>
 
 // in microseconds
 #define DEFAULT_PING_GAP 1000000
 #define DEFAULT_PING_TIMEOUT 1000000
 
 #define ICMP_HEADER_LENGTH 8
-#define MESSAGE_BUFFER_SIZE 1024
+#define MESSAGE_BUFFER_SIZE 128
 
 #ifndef ICMP_ECHO
     #define ICMP_ECHO 8
@@ -53,8 +54,9 @@ public:
 class PingStat{
 public:
     PingStat();
-    void process_ping_res(const PingRes& res, int seq);
+    void process_ping_res(const PingRes& res, int seq, bool verbose=true);
     void print_statistics() const;
+    int get_last_rtt() const;
     int get_srtt() const;
     int get_jitter() const;
     double get_loss() const;
@@ -77,13 +79,14 @@ public:
                     int _ping_timeout=DEFAULT_PING_TIMEOUT);
     Pinger(const Pinger& other) = delete;
     Pinger& operator=(const Pinger& other) = delete;
-    Pinger(Pinger&&) = default;
-    Pinger& operator=(Pinger&& other) = default;
+    Pinger(Pinger&&);
+    Pinger& operator=(Pinger&& other);
     ~Pinger();
 
     PingRes ping(int seq=0, int id=-1);     // return rtt in microseconds
     std::string get_hostname() const;
     void print_host() const;
+    virtual std::unique_ptr<Pinger> to_unique_ptr();
 private:
     std::string hostname;
     int ping_timeout;   // after that packet is considered lost
@@ -102,6 +105,7 @@ public:
                              int _ping_timeout=DEFAULT_PING_TIMEOUT);
     void ping_continuously();
     int get_ping_gap() const;
+    virtual std::unique_ptr<Pinger> to_unique_ptr() override;
 private:
     int ping_gap;
 };
