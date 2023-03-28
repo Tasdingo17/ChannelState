@@ -14,10 +14,10 @@ void LossDumb::process_answer(const PingRes& ping_res){
 
 void LossDumb::process_answer(const std::list<MeasurementBundle>& mb_list){
     for (const auto& mb: mb_list){
-        std::cout << "!!!Losser debug! mb.m_local_nlost:" << mb.m_local_nlost;
-        std::cout << " mb_local_nsamples:" << mb.m_local_nsamples << std::endl;
-        m_nsamples += mb.m_local_nsamples;
-        m_nlost += mb.m_local_nlost;
+        //std::cout << "!!!Losser debug! mb.m_remote_nlost:" << mb.m_remote_nlost;
+        //std::cout << " mb_remote_nsamples:" << mb.m_remote_nsamples << std::endl;
+        m_nsamples += mb.m_remote_nsamples;
+        m_nlost += mb.m_remote_nlost;
     }
 }
 
