@@ -41,6 +41,7 @@ private:
     std::unique_ptr<LossBase> m_losser;
     int m_measurment_gap;
     PingStat m_ping_stats;
+    float m_curr_abw_est;   // bytes/sec
 
     void abw_single_round(std::list<MeasurementBundle> *);
     void setup();
