@@ -206,6 +206,6 @@ int main(int argc, char **argv)
     }
 
     chest->run();
-
+    google::protobuf::ShutdownProtobufLibrary();
     return (0);
 }
