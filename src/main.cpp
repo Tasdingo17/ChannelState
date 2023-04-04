@@ -199,7 +199,7 @@ int main(int argc, char **argv)
 
     if (sender){
         Pinger pinger(dstip.c_str());
-        LossDumb losser;
+        LossElr losser;
         chest = std::make_unique<ChestSender>(*ab_sender, pinger, losser);
     } else {
         chest = std::make_unique<ChestReceiver>(*ab_receiver);
