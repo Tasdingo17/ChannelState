@@ -1,5 +1,7 @@
 #include "loss.h"
 #include <iostream>
+#include <fstream>
+#include <yaml-cpp/yaml.h>
 
 //////////////// LossDumb ///////////////////
 double LossDumb::get_total_loss_percentage() const{
@@ -166,16 +168,92 @@ double LossElr::get_local_loss_percentage() const{
 
 void LossElr::print_probabilities() const{
     for (const auto& elem: m_probabilities){
-        std::cout << "Delay: " << elem.first << "ms" << std::endl;
+        std::cout << "Delay: " << elem.first << "ms\n";
         std::cout << '[';
         for (const auto& pkt_cnt: elem.second){
             std::cout << '{' << pkt_cnt.nlost << ", " << pkt_cnt.ntotal << "}, ";
         }
-        std::cout << ']' << std::endl;
+        std::cout << "]\n";
     }
 }
 
 
-LossElr::~LossElr(){
-    std::cout << "Total samples: " << m_nsamples << std::endl;
-} 
+namespace YAML {
+    template<>
+    struct convert<LossElr::PktCount> {
+        static Node encode(const LossElr::PktCount& rhs) {
+            Node node;
+            node["nlost"] = rhs.nlost;
+            node["ntotal"] = rhs.ntotal;
+            return node;
+        }
+
+        static bool decode(const Node& node, LossElr::PktCount& rhs) {
+            if(!node.IsMap()) {
+            return false;
+            }
+            rhs.nlost = node["nlost"].as<int>();
+            rhs.ntotal = node["ntotal"].as<int>();
+            return true;
+        }
+    };
+
+    Emitter& operator<< (YAML::Emitter& out, const LossElr::PktCount& v) {
+        out << YAML::Flow;
+        out << YAML::BeginMap;
+        out << YAML::Key << "nlost" << YAML::Value << v.nlost;
+        out << YAML::Key << "ntotal"<< YAML::Value << v.ntotal;
+        out << YAML::EndMap;
+        return out;
+    }
+}
+
+
+void LossElr::serialize_to_file(const std::string& filename) const{
+    YAML::Emitter emmiter;
+    emmiter << YAML::BeginMap;
+    emmiter << YAML::Key << "m_nlost" << YAML::Value << m_nlost;
+    emmiter << YAML::Key << "m_nsamples" << YAML::Value << m_nsamples;
+    emmiter << YAML::Key << "m_tau_nsteps" << YAML::Value << m_tau_nsteps; 
+    emmiter << YAML::Comment("Don't change!");
+    
+    emmiter << YAML::Key << "m_probabilities";
+    emmiter << YAML::BeginMap;
+    for (const auto& elem: m_probabilities){
+        emmiter << YAML::Key << elem.first;
+        emmiter << YAML::Value;
+        emmiter << YAML::BeginSeq;
+        for (const auto& pkt_count: elem.second){
+            emmiter << pkt_count;
+        }
+        emmiter << YAML::EndSeq;
+    }
+    emmiter << YAML::EndMap;
+
+    std::ofstream fout(filename);
+    fout << emmiter.c_str();
+    fout.close();
+}
+
+
+// From yml format
+void LossElr::deserialize_from_file(const std::string& filename){
+    YAML::Node elr = YAML::LoadFile(filename);
+    m_nlost = elr["m_nlost"].as<unsigned int>();
+    m_nsamples = elr["m_nsamples"].as<unsigned int>();
+    m_tau_nsteps = elr["m_tau_nsteps"].as<int>();
+    m_probabilities = std::move(elr["m_probabilities"].as<elr_probs>());
+}
+
+
+void LossElr::fill_probs_random(unsigned int size){
+    srand((unsigned)time(0));
+    for (int i = 0; i < size; i++){
+        std::vector<PktCount> delay_vec;
+        delay_vec.reserve(2*m_tau_nsteps+1);
+        for (int j = 0; j < 2*m_tau_nsteps+1; j++){
+            delay_vec.emplace_back(PktCount(rand() % 1000, rand() % 100000));
+        }
+        m_probabilities[i] = delay_vec;
+    }
+}

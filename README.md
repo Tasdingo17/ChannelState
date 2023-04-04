@@ -12,6 +12,10 @@ By 'channel state' we assume:
 
 git submodule init?
 
+Protobuf installed
+
+yaml-cpp installed
+
 ## Build
 
 cmake required

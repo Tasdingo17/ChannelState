@@ -50,7 +50,20 @@ public:
     virtual std::unique_ptr<LossBase> clone() const override;
     virtual void process_answer(const std::list<MeasurementBundle>& mb_list) override;
     virtual void process_answer(const PingRes& ping_res) override;
-    ~LossElr();
+    void print_probabilities() const;
+    void fill_probs_random(unsigned int size=25);   // for debug
+
+    struct PktCount{
+        unsigned int nlost;
+        unsigned int ntotal;
+        PktCount(): nlost(0), ntotal(0){};
+        PktCount(unsigned lost, unsigned total): nlost(lost), ntotal(total){};
+    };
+    // to yml format
+    void serialize_to_file(const std::string& filename) const;
+
+    // from yml format
+    void deserialize_from_file(const std::string& filename);
 private:
     unsigned int m_nlost;
     unsigned int m_nsamples;
@@ -61,12 +74,6 @@ private:
     /*OLD: delay(ms) : [t_send - 50*10, t_send -50*9, ..., t_send, t_send + 50, ... t_send + 50*10], elem {n_lost, n_total} */
     /*NEW: delay(ms) : [pkt_idx-5, pkt_idx-4, ..., pkt_idx, ..., pkt_idx+5], elem {n_lost, n_total}*/
 
-    struct PktCount{
-        unsigned int nlost;
-        unsigned int ntotal;
-        PktCount(): nlost(0), ntotal(0){};
-    };
-    
     // Should be 'buckets' for delays but now every delay (ms) is a key
     using elr_probs = std::unordered_map<int, std::vector<PktCount>>;
     elr_probs m_probabilities;
@@ -74,8 +81,6 @@ private:
     void count_stats(const MeasurementBundle& mb);
     std::vector<PktCount>& get_pkt_count_vec(int delay);
     double compute_integral(int pkt_idx) const;
-
-    void print_probabilities() const;
 };
 
 #endif
