@@ -33,7 +33,7 @@ public:
     ChestSender(std::unique_ptr<ABSender>& abw_sender, Pinger& pinger,
                 const LossBase& losser, int measurment_gap=DEFAULT_MEASURMENT_GAP);
     virtual void run() override;
-    void print_statistics(int runnum=-1);
+    void print_statistics(int runnum=-1, bool yaml=false);
     //void compute_loss();
 private:
     std::unique_ptr<ABSender> m_abw_sender;
@@ -42,6 +42,7 @@ private:
     int m_measurment_gap;
     PingStat m_ping_stats;
     float m_curr_abw_est;   // bytes/sec
+    timeval m_time_start;
 
     void abw_single_round(std::list<MeasurementBundle> *);
     void setup();
@@ -49,6 +50,8 @@ private:
     void cleanup();
     void process_abw_round(std::list<MeasurementBundle> *);
     void process_ping_res(const PingRes& ping_res);
+    void print_stats_yaml(int runnum);
+    timeval time_from_start() const;
 };
 
 #endif

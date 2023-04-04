@@ -42,17 +42,49 @@ void ChestSender::cleanup(){
 }
 
 
-void ChestSender::print_statistics(int runnum){
-    // TODO: case for -1 and other
-    if (runnum != -1){
-        std::cout << "~~~Printing statistics for run " << runnum << "~~~" << std::endl;
+void ChestSender::print_statistics(int runnum, bool yaml){
+    if (yaml){
+        print_stats_yaml(runnum);
+        return;
     }
-    std::cout << "Available bw estimation: " << m_curr_abw_est / 1000.0;
-    std::cout << " mbit/sec" << std::endl;
+    if (runnum != -1){
+        timeval iter_time = time_from_start();
+        std::cout << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 << ":"; 
+        std::cout << "~~~Printing statistics for run " << runnum << "~~~\n";
+    }
+    std::cout << "Available bw estimation: " << m_curr_abw_est / 1000.0 << " mbit/sec\n";
     std::cout << "Last RTT: " << m_ping_stats.get_last_rtt() / 1000. << "ms";
     std::cout << "; smoothed RTT: " << m_ping_stats.get_srtt() / 1000. << "ms";
-    std::cout << "; jitter: " << m_ping_stats.get_jitter() / 1000. << "ms" << std::endl;
-    std::cout << "Loss percentage: " << m_losser->get_loss_percentage() << '%' << std::endl << std::endl;
+    std::cout << "; jitter: " << m_ping_stats.get_jitter() / 1000. << "ms\n";
+    std::cout << "Total loss percentage: " << m_losser->get_total_loss_percentage() << "%\n";
+    auto local_loss = m_losser->get_local_loss_percentage();
+    if (local_loss >= 0){
+        std::cout << "Local loss percentage: " << local_loss << "%\n";
+    }
+    std::cout << std::endl;
+}
+
+void ChestSender::print_stats_yaml(int runnum){
+    static bool start = true;
+    if (start){
+        //std::cout << "ChestRes:\n";
+        start = false;
+    }
+    timeval iter_time = time_from_start();
+    std::cout << "-   runnum    : " << runnum << '\n';
+    std::cout << "    time      : " << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 <<  '\n';
+    std::cout << "    abw       : " << m_curr_abw_est / 1000.0  << '\n';
+    std::cout << "    lastRtt   : " << m_ping_stats.get_last_rtt() / 1000. << '\n';
+    std::cout << "    sRtt      : " << m_ping_stats.get_srtt() / 1000. << '\n';
+    std::cout << "    jitter    : " << m_ping_stats.get_jitter() / 1000. << '\n';
+    std::cout << "    loss_total: " << m_losser->get_total_loss_percentage() << '\n';
+    auto local_loss = m_losser->get_local_loss_percentage();
+    if (local_loss >= 0){
+        std::cout << "    loss_local: " << local_loss << '\n';
+    } else {
+        std::cout << "    loss_local: null\n";
+    }
+    std::cout << std::endl;
 }
 
 
@@ -62,21 +94,21 @@ void ChestSender::run(){
     measurement_list = std::make_unique<std::list<MeasurementBundle>>();
     int runnum = 1;
     while(true){
-        auto ping_res = std::async(std::launch::async, 
-        [this](){ 
-            return m_pinger->ping(); 
-        });
-        process_ping_res(ping_res.get());
-        
         auto abet_res = std::async(std::launch::async, 
         [this, &measurement_list](){ 
             return abw_single_round(measurement_list.get()); 
         });
-        abet_res.get();
-
-        process_abw_round(measurement_list.get());
+        auto ping_res = std::async(std::launch::async, 
+        [this](){ 
+            return m_pinger->ping(); 
+        });
         
-        print_statistics(runnum);
+        
+        abet_res.get();
+        process_abw_round(measurement_list.get());
+        process_ping_res(ping_res.get());
+        
+        print_statistics(runnum, true);
         measurement_list->clear();
         usleep(m_measurment_gap);   //FIXME: intra-stream sleep time
         runnum += 1;
@@ -89,6 +121,7 @@ void ChestSender::run(){
 
 void ChestSender::setup(){
     setup_abw();
+    gettimeofday(&m_time_start, 0);
     std::cerr << "Chest prepared!" << std::endl;
 }
 
@@ -115,8 +148,8 @@ void ChestSender::abw_single_round(std::list<MeasurementBundle>* mb_list){
     std::list<MeasurementBundle> tmp_mb_list;
     while (!done){
         if (!m_abw_sender->doOneMeasurementRound(&tmp_mb_list)){
-            std::cerr << "!! persistent error collecting measurements from receiver" << std::endl;
-            throw -1;
+            //std::cerr << "!! Error collecting measurements from receiver" << std::endl;
+            continue;
         }
         mb_list->insert(mb_list->end(), tmp_mb_list.begin(), tmp_mb_list.end());  // save results
 
@@ -131,8 +164,9 @@ void ChestSender::abw_single_round(std::list<MeasurementBundle>* mb_list){
 
 
 void ChestSender::process_abw_round(std::list<MeasurementBundle> * mb_list){
-    std::cout << "Attempts for round:" << mb_list->size() << std::endl;
-    m_curr_abw_est = ABW_ALPHA * m_abw_sender->get_current_estimation() + (1 - ABW_ALPHA) * m_curr_abw_est;   // exponential moving average
+    //std::cout << "Attempts for round:" << mb_list->size() << std::endl;
+    m_curr_abw_est = m_abw_sender->get_current_estimation();
+    //m_curr_abw_est = ABW_ALPHA * m_abw_sender->get_current_estimation() + (1 - ABW_ALPHA) * m_curr_abw_est;   // exponential moving average
     m_losser->process_answer(*mb_list);
     return;
 }
@@ -141,4 +175,12 @@ void ChestSender::process_abw_round(std::list<MeasurementBundle> * mb_list){
 void ChestSender::process_ping_res(const PingRes& ping_res){
     m_ping_stats.process_ping_res(ping_res, -1, false);
     m_losser->process_answer(ping_res);
+}
+
+
+timeval ChestSender::time_from_start() const{
+    timeval abs_time, curr_time;
+    gettimeofday(&abs_time, 0);
+    timersub(&abs_time, &m_time_start, &curr_time);
+    return curr_time;
 }
