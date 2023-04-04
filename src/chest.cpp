@@ -2,9 +2,30 @@
 #include <thread>
 #include <iostream>
 #include <future>
+#include <fstream>
 
 // for exponential moving avarage
 #define ABW_ALPHA 0.9
+
+/////////////////////////// EndPt
+ChestEndPt::ChestEndPt(): m_ostream(&std::cout, [](std::ostream*){}){};
+
+void ChestEndPt::set_verbosity(int verbosity){
+    m_verbose = verbosity;
+}
+
+void ChestEndPt::set_output_file(const std::string& filename){
+    m_output_file = filename;
+    m_ostream = std::move(std::unique_ptr<std::ostream, std::function<void(std::ostream*)>>
+                (new std::ofstream(filename), std::default_delete<std::ostream>()));
+    if (!dynamic_cast<std::ofstream&>(*m_ostream).is_open()){
+        throw std::runtime_error("Failed to open file " + filename);
+    }
+}
+
+void ChestEndPt::set_output_format(bool is_yaml){
+    m_yaml_output = is_yaml;
+}
 
 /////////////////////////// Reciever
 ChestReceiver::ChestReceiver(const ABReceiver& abw_receiver):
@@ -42,49 +63,55 @@ void ChestSender::cleanup(){
 }
 
 
-void ChestSender::print_statistics(int runnum, bool yaml){
-    if (yaml){
+void ChestSender::print_statistics(int runnum){
+    if (m_yaml_output){
         print_stats_yaml(runnum);
-        return;
+    } else {
+        print_stats_default(runnum);
     }
-    if (runnum != -1){
-        timeval iter_time = time_from_start();
-        std::cout << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 << ":"; 
-        std::cout << "~~~Printing statistics for run " << runnum << "~~~\n";
-    }
-    std::cout << "Available bw estimation: " << m_curr_abw_est / 1000000.0 << " mbit/sec\n";
-    std::cout << "Last RTT: " << m_ping_stats.get_last_rtt() / 1000. << "ms";
-    std::cout << "; smoothed RTT: " << m_ping_stats.get_srtt() / 1000. << "ms";
-    std::cout << "; jitter: " << m_ping_stats.get_jitter() / 1000. << "ms\n";
-    std::cout << "Total loss percentage: " << m_losser->get_total_loss_percentage() << "%\n";
-    auto local_loss = m_losser->get_local_loss_percentage();
-    if (local_loss >= 0){
-        std::cout << "Local loss percentage: " << local_loss << "%\n";
-    }
-    std::cout << std::endl;
 }
 
-void ChestSender::print_stats_yaml(int runnum){
+
+void ChestSender::print_stats_yaml(int runnum) const{
     static bool start = true;
     if (start){
-        //std::cout << "ChestRes:\n";
+        //ostr << "ChestRes:\n";
         start = false;
     }
     timeval iter_time = time_from_start();
-    std::cout << "-   runnum    : " << runnum << '\n';
-    std::cout << "    time      : " << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 <<  '\n';
-    std::cout << "    abw       : " << m_curr_abw_est / 1000000.0  << '\n';
-    std::cout << "    lastRtt   : " << m_ping_stats.get_last_rtt() / 1000. << '\n';
-    std::cout << "    sRtt      : " << m_ping_stats.get_srtt() / 1000. << '\n';
-    std::cout << "    jitter    : " << m_ping_stats.get_jitter() / 1000. << '\n';
-    std::cout << "    loss_total: " << m_losser->get_total_loss_percentage() << '\n';
+    *m_ostream << "-   runnum    : " << runnum << '\n';
+    *m_ostream << "    time      : " << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 <<  '\n';
+    *m_ostream << "    abw       : " << m_curr_abw_est / 1000000.0  << '\n';
+    *m_ostream << "    lastRtt   : " << m_ping_stats.get_last_rtt() / 1000. << '\n';
+    *m_ostream << "    sRtt      : " << m_ping_stats.get_srtt() / 1000. << '\n';
+    *m_ostream << "    jitter    : " << m_ping_stats.get_jitter() / 1000. << '\n';
+    *m_ostream << "    loss_total: " << m_losser->get_total_loss_percentage() << '\n';
     auto local_loss = m_losser->get_local_loss_percentage();
     if (local_loss >= 0){
-        std::cout << "    loss_local: " << local_loss << '\n';
+        *m_ostream << "    loss_local: " << local_loss << '\n';
     } else {
-        std::cout << "    loss_local: null\n";
+        *m_ostream << "    loss_local: null\n";
     }
-    std::cout << std::endl;
+    *m_ostream << std::endl;
+}
+
+
+void ChestSender::print_stats_default(int runnum) const{
+    if (runnum != -1){
+        timeval iter_time = time_from_start();
+        *m_ostream << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 << ":"; 
+        *m_ostream << "~~~Printing statistics for run " << runnum << "~~~\n";
+    }
+    *m_ostream << "Available bw estimation: " << m_curr_abw_est / 1000000.0 << " mbit/sec\n";
+    *m_ostream << "Last RTT: " << m_ping_stats.get_last_rtt() / 1000. << "ms";
+    *m_ostream << "; smoothed RTT: " << m_ping_stats.get_srtt() / 1000. << "ms";
+    *m_ostream << "; jitter: " << m_ping_stats.get_jitter() / 1000. << "ms\n";
+    *m_ostream << "Total loss percentage: " << m_losser->get_total_loss_percentage() << "%\n";
+    auto local_loss = m_losser->get_local_loss_percentage();
+    if (local_loss >= 0){
+        *m_ostream << "Local loss percentage: " << local_loss << "%\n";
+    }
+    *m_ostream << std::endl;
 }
 
 
@@ -107,13 +134,10 @@ void ChestSender::run(){
         process_abw_round(measurement_list.get());
         process_ping_res(ping_res.get());
         
-        print_statistics(runnum, true);
+        print_statistics(runnum);
         measurement_list->clear();
         usleep(m_measurment_gap);   //FIXME: intra-stream sleep time
         runnum += 1;
-        //if (runnum >= 20){
-        //    break;
-        //}
     }
 }
 

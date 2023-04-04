@@ -5,13 +5,25 @@
 #include "ping/pinger.h"
 #include "loss/loss.h"
 #include <memory>
+#include <iostream>
+#include <functional>
 
 // micriseconds
 #define DEFAULT_MEASURMENT_GAP 100000
 
 class ChestEndPt{
 public:
+    ChestEndPt();
     virtual void run() = 0;
+    void set_verbosity(int);
+    void set_output_file(const std::string& filename);
+    void set_output_format(bool is_yaml=false);
+    virtual ~ChestEndPt() = default;
+protected:
+    int m_verbose;
+    std::string m_output_file;
+    bool m_yaml_output;
+    std::unique_ptr<std::ostream, std::function<void(std::ostream*)>> m_ostream;
 };
 
 
@@ -33,8 +45,7 @@ public:
     ChestSender(std::unique_ptr<ABSender>& abw_sender, Pinger& pinger,
                 const LossBase& losser, int measurment_gap=DEFAULT_MEASURMENT_GAP);
     virtual void run() override;
-    void print_statistics(int runnum=-1, bool yaml=false);
-    //void compute_loss();
+    void print_statistics(int runnum=-1);
 private:
     std::unique_ptr<ABSender> m_abw_sender;
     std::unique_ptr<Pinger> m_pinger;
@@ -50,7 +61,8 @@ private:
     void cleanup();
     void process_abw_round(std::list<MeasurementBundle> *);
     void process_ping_res(const PingRes& ping_res);
-    void print_stats_yaml(int runnum);
+    void print_stats_yaml(int runnum) const;
+    void print_stats_default(int runnum) const;
     timeval time_from_start() const;
 };
 
