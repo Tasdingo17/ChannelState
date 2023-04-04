@@ -52,7 +52,7 @@ void ChestSender::print_statistics(int runnum, bool yaml){
         std::cout << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 << ":"; 
         std::cout << "~~~Printing statistics for run " << runnum << "~~~\n";
     }
-    std::cout << "Available bw estimation: " << m_curr_abw_est / 1000.0 << " mbit/sec\n";
+    std::cout << "Available bw estimation: " << m_curr_abw_est / 1000000.0 << " mbit/sec\n";
     std::cout << "Last RTT: " << m_ping_stats.get_last_rtt() / 1000. << "ms";
     std::cout << "; smoothed RTT: " << m_ping_stats.get_srtt() / 1000. << "ms";
     std::cout << "; jitter: " << m_ping_stats.get_jitter() / 1000. << "ms\n";
@@ -73,7 +73,7 @@ void ChestSender::print_stats_yaml(int runnum){
     timeval iter_time = time_from_start();
     std::cout << "-   runnum    : " << runnum << '\n';
     std::cout << "    time      : " << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 <<  '\n';
-    std::cout << "    abw       : " << m_curr_abw_est / 1000.0  << '\n';
+    std::cout << "    abw       : " << m_curr_abw_est / 1000000.0  << '\n';
     std::cout << "    lastRtt   : " << m_ping_stats.get_last_rtt() / 1000. << '\n';
     std::cout << "    sRtt      : " << m_ping_stats.get_srtt() / 1000. << '\n';
     std::cout << "    jitter    : " << m_ping_stats.get_jitter() / 1000. << '\n';
@@ -94,15 +94,14 @@ void ChestSender::run(){
     measurement_list = std::make_unique<std::list<MeasurementBundle>>();
     int runnum = 1;
     while(true){
-        auto abet_res = std::async(std::launch::async, 
-        [this, &measurement_list](){ 
-            return abw_single_round(measurement_list.get()); 
-        });
         auto ping_res = std::async(std::launch::async, 
         [this](){ 
             return m_pinger->ping(); 
         });
-        
+        auto abet_res = std::async(std::launch::async, 
+        [this, &measurement_list](){ 
+            return abw_single_round(measurement_list.get()); 
+        });
         
         abet_res.get();
         process_abw_round(measurement_list.get());
