@@ -3,6 +3,21 @@
 #include <fstream>
 #include <yaml-cpp/yaml.h>
 
+//////////////// LossBase ///////////////////
+
+void LossBase::set_verbosity(int verb_level){
+    m_verbose = verb_level;
+}
+
+void LossBase::serialize_to_file(const std::string& filename) const {
+    std::cerr << "This losser doesn't support serialization, nothing will be done" << std::endl;
+}
+
+void LossBase::deserialize_from_file(const std::string& filename){
+    std::cerr << "This losser doesn't support serialization, nothing will be done" << std::endl;
+}
+
+
 //////////////// LossDumb ///////////////////
 double LossDumb::get_total_loss_percentage() const{
     if (m_nsamples != 0){
@@ -46,7 +61,7 @@ m_nlost(0), m_nsamples(0), m_consistency_threshold(consistency_threshold)
 std::unique_ptr<LossBase> LossElr::clone() const {
     return std::make_unique<LossElr>(*this);
 }
- 
+
 
 // used for delays, in general case can lead to overflows
 int get_millisec(const timeval& tv){

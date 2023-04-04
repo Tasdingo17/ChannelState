@@ -21,7 +21,13 @@ public:
     virtual std::unique_ptr<LossBase> clone() const = 0;
     virtual void process_answer(const PingRes& ping_res) = 0;
     virtual void process_answer(const std::list<MeasurementBundle>& mb) = 0;
+
+    virtual void serialize_to_file(const std::string& filename) const;
+    virtual void deserialize_from_file(const std::string& filename);
+    void set_verbosity(int);
     virtual ~LossBase() = default;
+protected:
+    int m_verbose;
 };
 
 class LossDumb: public LossBase{
@@ -60,10 +66,10 @@ public:
         PktCount(unsigned lost, unsigned total): nlost(lost), ntotal(total){};
     };
     // to yml format
-    void serialize_to_file(const std::string& filename) const;
+    virtual void serialize_to_file(const std::string& filename) const override;
 
     // from yml format
-    void deserialize_from_file(const std::string& filename);
+    virtual void deserialize_from_file(const std::string& filename) override;
 private:
     unsigned int m_nlost;
     unsigned int m_nsamples;
