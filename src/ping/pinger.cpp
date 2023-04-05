@@ -183,7 +183,7 @@ PingRes Pinger::ping(int seq, int id){
         if (error < 0) {
             if (errno == EAGAIN) {
                 if (delay > ping_timeout) {
-                    printf("timeout exceeded");
+                    fprintf(stderr, "timeout exceeded\n");
                     return PingRes(-1);
                 } else {
                     /* No data available yet, try to receive again. */

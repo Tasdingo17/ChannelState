@@ -78,6 +78,18 @@ void ChestSender::cleanup(){
 }
 
 
+unsigned ChestSender::get_mean_rtt_round() const{
+    if (m_rtt_vec_round.size() == 0){
+        return 0;
+    }
+    unsigned sum = 0;
+    for (auto& rtt: m_rtt_vec_round){
+        sum += rtt;
+    }
+    return sum / m_rtt_vec_round.size();
+}
+
+
 void ChestSender::print_statistics(int runnum){
     if (m_yaml_output){
         print_stats_yaml(runnum);
@@ -97,7 +109,7 @@ void ChestSender::print_stats_yaml(int runnum) const{
     *m_ostream << "-   runnum    : " << runnum << '\n';
     *m_ostream << "    time      : " << iter_time.tv_sec << '.' << iter_time.tv_usec / 1000 <<  '\n';
     *m_ostream << "    abw       : " << m_curr_abw_est / 1000000.0  << '\n';
-    *m_ostream << "    lastRtt   : " << m_ping_stats.get_last_rtt() / 1000. << '\n';
+    *m_ostream << "    lastRtt   : " << get_mean_rtt_round() / 1000. << '\n';
     *m_ostream << "    sRtt      : " << m_ping_stats.get_srtt() / 1000. << '\n';
     *m_ostream << "    jitter    : " << m_ping_stats.get_jitter() / 1000. << '\n';
     *m_ostream << "    loss_total: " << m_losser->get_total_loss_percentage() << '\n';
@@ -118,7 +130,7 @@ void ChestSender::print_stats_default(int runnum) const{
         *m_ostream << "~~~Printing statistics for run " << runnum << "~~~\n";
     }
     *m_ostream << "Available bw estimation: " << m_curr_abw_est / 1000000.0 << " mbit/sec\n";
-    *m_ostream << "Last RTT: " << m_ping_stats.get_last_rtt() / 1000. << "ms";
+    *m_ostream << "Last RTT: " << get_mean_rtt_round() / 1000. << "ms";
     *m_ostream << "; smoothed RTT: " << m_ping_stats.get_srtt() / 1000. << "ms";
     *m_ostream << "; jitter: " << m_ping_stats.get_jitter() / 1000. << "ms\n";
     *m_ostream << "Total loss percentage: " << m_losser->get_total_loss_percentage() << "%\n";
@@ -134,17 +146,18 @@ void ChestSender::run(){
     setup();
     std::unique_ptr<std::list<MeasurementBundle>> 
     measurement_list = std::make_unique<std::list<MeasurementBundle>>();
-    stop_handler::chest_stopped = false;
     auto prev_handler = signal(SIGINT, stop_handler::stop_chest);  // break from loop after SIGINT
     for(int runnum=0; !stop_handler::chest_stopped; runnum++){
         if (m_verbose && runnum % 10 == 0 && m_output_file.length() != 0){
             // print round number to cerr to ensure working
             std::cerr << "Round: " << runnum << std::endl;
         }
+
         try{
             chest_sender_single_round(measurement_list, runnum);
             print_statistics(runnum);
             measurement_list->clear();
+            m_rtt_vec_round.clear();
             usleep(m_measurment_gap);   //FIXME: intra-stream sleep time
         } catch (std::exception& e) {
             std::cerr << e.what() << std::endl;
@@ -160,6 +173,8 @@ void ChestSender::run(){
 void ChestSender::setup(){
     setup_abw();
     gettimeofday(&m_time_start, 0);
+    stop_handler::chest_stopped = false;
+    m_rtt_vec_round.clear();
     std::cerr << "Chest prepared!" << std::endl;
 }
 
@@ -180,6 +195,12 @@ void ChestSender::setup_abw(){
 }
 
 
+// check if std::future got results
+template<typename R>
+bool is_future_ready(std::future<R> const& f){ 
+    return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; 
+}
+
 void ChestSender::
 chest_sender_single_round(std::unique_ptr<std::list<MeasurementBundle>>& measurement_list, int runnum){
     auto ping_res = std::async(std::launch::async, 
@@ -190,7 +211,16 @@ chest_sender_single_round(std::unique_ptr<std::list<MeasurementBundle>>& measure
     [this, &measurement_list](){ 
         return abw_single_round(measurement_list.get()); 
     });
-    
+
+    while (!is_future_ready(abet_res)){     // ping while abet works
+        process_ping_res(ping_res.get());
+        ping_res = std::async(std::launch::async, 
+        [this](){ 
+            usleep(m_measurment_gap);
+            return m_pinger->ping(); 
+        });
+    }
+
     abet_res.get();
     process_abw_round(measurement_list.get());
     process_ping_res(ping_res.get());
@@ -209,10 +239,6 @@ void ChestSender::abw_single_round(std::list<MeasurementBundle>* mb_list){
         mb_list->insert(mb_list->end(), tmp_mb_list.begin(), tmp_mb_list.end());  // save results
 
         done = m_abw_sender->processOneRoundRes(&tmp_mb_list);   // clears tmp_mb_list
-        
-        //if (!done){
-        //    sleepExponentially();   // retry
-        //}
     }
     return;
 }
@@ -228,8 +254,10 @@ void ChestSender::process_abw_round(std::list<MeasurementBundle> * mb_list){
 
 
 void ChestSender::process_ping_res(const PingRes& ping_res){
+    //std::cerr << "In proccess ping" << std::endl;
     m_ping_stats.process_ping_res(ping_res, -1, false);
     m_losser->process_answer(ping_res);
+    m_rtt_vec_round.push_back(m_ping_stats.get_last_rtt());
 }
 
 

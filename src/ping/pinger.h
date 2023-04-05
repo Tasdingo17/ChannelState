@@ -28,6 +28,7 @@
 #define DEFAULT_PING_GAP 1000000
 #define DEFAULT_PING_TIMEOUT 1000000
 
+// bytes
 #define ICMP_HEADER_LENGTH 8
 #define MESSAGE_BUFFER_SIZE 128
 
@@ -51,6 +52,7 @@ public:
 };
 
 
+// Process ping results (microseconds resolution)
 class PingStat{
 public:
     PingStat();

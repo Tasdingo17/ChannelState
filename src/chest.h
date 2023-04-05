@@ -7,6 +7,7 @@
 #include <memory>
 #include <iostream>
 #include <functional>
+#include <vector>
 
 // micriseconds
 #define DEFAULT_MEASURMENT_GAP 100000
@@ -58,6 +59,7 @@ private:
     PingStat m_ping_stats;
     float m_curr_abw_est;   // bytes/sec
     timeval m_time_start;
+    std::vector<int> m_rtt_vec_round;   // microseconds, vector of rtt during measurment round
 
     void chest_sender_single_round(std::unique_ptr<std::list<MeasurementBundle>>&, int runnum=-1);
     void abw_single_round(std::list<MeasurementBundle> *);
@@ -68,6 +70,7 @@ private:
     void process_ping_res(const PingRes& ping_res);
     void print_stats_yaml(int runnum) const;
     void print_stats_default(int runnum) const;
+    unsigned get_mean_rtt_round() const;    // microseconds
     timeval time_from_start() const;
 };
 
