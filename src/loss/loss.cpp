@@ -41,8 +41,6 @@ void LossDumb::process_answer(const PingRes& ping_res){
 
 void LossDumb::process_answer(const std::list<MeasurementBundle>& mb_list){
     for (const auto& mb: mb_list){
-        //std::cout << "!!!Losser debug! mb.m_remote_nlost:" << mb.m_remote_nlost;
-        //std::cout << " mb_remote_nsamples:" << mb.m_remote_nsamples << std::endl;
         m_nsamples += mb.m_remote_nsamples;
         m_nlost += mb.m_remote_nlost;
     }
@@ -80,7 +78,6 @@ std::vector<LossElr::PktCount>& LossElr::get_pkt_count_vec(int delay){
 }
 
 
-// TOCHECK...
 // Also save delays for all non-lost packets in mb
 void LossElr::count_stats(const MeasurementBundle& mb){
     const std::vector<timeval>& delay_vec = mb.m_delays_vec;
@@ -93,7 +90,6 @@ void LossElr::count_stats(const MeasurementBundle& mb){
         }
         m_delay_vec.push_back(delay);
         // ..choose bucket.. (possible feature for 'delay resolution') //
-        //std::cout << "delay " << delay << std::endl;
         std::vector<PktCount>& pkt_count_vec = get_pkt_count_vec(delay);    // CHECK: mb reference to local var
         for (int i = -m_tau_nsteps; i <= m_tau_nsteps; i++){
             int tmp_idx = pkt_idx + i;  // TOCHECK
@@ -143,7 +139,7 @@ double LossElr::get_total_loss_percentage() const {
 double LossElr::compute_integral(int pkt_idx) const{
     auto pkt_count_vec_it = m_probabilities.find(m_delay_vec[pkt_idx]);
     if (pkt_count_vec_it == m_probabilities.end()){
-        std::cout << "Error: new delay while compute_integral" << std::endl;
+        std::cerr << "Error: new delay while compute_integral" << std::endl;
         return 0;
     }
     const std::vector<PktCount>& stat_vec = pkt_count_vec_it->second;
