@@ -21,7 +21,7 @@ public:
     virtual bool processOneRoundRes(std::list<MeasurementBundle> *) = 0;
     virtual void resetRound() = 0;
     virtual float get_current_estimation() const = 0;
-    virtual ~ABSender(){};
+    virtual ~ABSender() = default;
 };
 
 
@@ -31,7 +31,7 @@ public:
     virtual std::unique_ptr<ABReceiver> clone() const = 0;
     virtual bool validate() = 0;
     virtual void cleanup() = 0;
-    virtual ~ABReceiver(){};
+    virtual ~ABReceiver() = default;
 };
 
 

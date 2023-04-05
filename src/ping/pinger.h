@@ -81,7 +81,7 @@ public:
     Pinger& operator=(const Pinger& other) = delete;
     Pinger(Pinger&&);
     Pinger& operator=(Pinger&& other);
-    ~Pinger();
+    virtual ~Pinger();
 
     PingRes ping(int seq=0, int id=-1);     // return rtt in microseconds
     std::string get_hostname() const;
