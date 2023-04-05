@@ -3,6 +3,7 @@
 #include <iostream>
 #include <future>
 #include <fstream>
+#include <csignal>
 
 // for exponential moving avarage
 #define ABW_ALPHA 0.9
@@ -27,6 +28,14 @@ void ChestEndPt::set_output_format(bool is_yaml){
     m_yaml_output = is_yaml;
 }
 
+namespace stop_handler{
+    bool chest_stopped = false;
+
+    void stop_chest(int signo){
+        chest_stopped = true;
+    }
+}
+
 /////////////////////////// Reciever
 ChestReceiver::ChestReceiver(const ABReceiver& abw_receiver):
 m_abw_receiver(abw_receiver.clone()){};
@@ -34,9 +43,15 @@ m_abw_receiver(abw_receiver.clone()){};
 ChestReceiver::ChestReceiver(std::unique_ptr<ABReceiver>& abw_receiver):
 m_abw_receiver(std::move(abw_receiver)) {};
 
+// TODO: SIGINT handler to stop Receiver
 void ChestReceiver::run(){
     if (m_abw_receiver->validate()){
-        auto abet_res = std::async(std::launch::async, [this](){m_abw_receiver->run();});
+        try{
+            auto abet_res = std::async(std::launch::async, [this](){m_abw_receiver->run();});
+        } catch (std::exception& e){
+            std::cerr << e.what() << std::endl;
+        } catch (...){
+        }
     }
 }
 
@@ -119,26 +134,26 @@ void ChestSender::run(){
     setup();
     std::unique_ptr<std::list<MeasurementBundle>> 
     measurement_list = std::make_unique<std::list<MeasurementBundle>>();
-    int runnum = 1;
-    while(true){
-        auto ping_res = std::async(std::launch::async, 
-        [this](){ 
-            return m_pinger->ping(); 
-        });
-        auto abet_res = std::async(std::launch::async, 
-        [this, &measurement_list](){ 
-            return abw_single_round(measurement_list.get()); 
-        });
-        
-        abet_res.get();
-        process_abw_round(measurement_list.get());
-        process_ping_res(ping_res.get());
-        
-        print_statistics(runnum);
-        measurement_list->clear();
-        usleep(m_measurment_gap);   //FIXME: intra-stream sleep time
-        runnum += 1;
+    stop_handler::chest_stopped = false;
+    auto prev_handler = signal(SIGINT, stop_handler::stop_chest);  // break from loop after SIGINT
+    for(int runnum=0; !stop_handler::chest_stopped; runnum++){
+        if (m_verbose && runnum % 10 == 0 && m_output_file.length() != 0){
+            // print round number to cerr to ensure working
+            std::cerr << "Round: " << runnum << std::endl;
+        }
+        try{
+            chest_sender_single_round(measurement_list, runnum);
+            print_statistics(runnum);
+            measurement_list->clear();
+            usleep(m_measurment_gap);   //FIXME: intra-stream sleep time
+        } catch (std::exception& e) {
+            std::cerr << e.what() << std::endl;
+            break;
+        } catch (...) {
+            break;
+        }
     }
+    signal(SIGINT, prev_handler);   // return default handler
 }
 
 
@@ -162,6 +177,23 @@ void ChestSender::setup_abw(){
         cleanup();
         throw;
     }
+}
+
+
+void ChestSender::
+chest_sender_single_round(std::unique_ptr<std::list<MeasurementBundle>>& measurement_list, int runnum){
+    auto ping_res = std::async(std::launch::async, 
+    [this](){ 
+        return m_pinger->ping(); 
+    });
+    auto abet_res = std::async(std::launch::async, 
+    [this, &measurement_list](){ 
+        return abw_single_round(measurement_list.get()); 
+    });
+    
+    abet_res.get();
+    process_abw_round(measurement_list.get());
+    process_ping_res(ping_res.get());
 }
 
 
@@ -207,3 +239,18 @@ timeval ChestSender::time_from_start() const{
     timersub(&abs_time, &m_time_start, &curr_time);
     return curr_time;
 }
+
+
+const ABSender* ChestSender::get_abw_sender() const{
+    return m_abw_sender.get();
+}
+
+
+const Pinger* ChestSender::get_pinger() const{
+    return m_pinger.get();
+}
+
+const LossBase* ChestSender::get_losser() const{
+    return m_losser.get();
+}
+

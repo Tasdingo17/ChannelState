@@ -43,3 +43,5 @@ On sender:
 ```
 ./launch_chest -S <receiver ip>
 ```
+
+**(SIGINT (ctrl+c) is handled as stop for chest.run())**

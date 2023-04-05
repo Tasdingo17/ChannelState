@@ -46,6 +46,10 @@ public:
                 const LossBase& losser, int measurment_gap=DEFAULT_MEASURMENT_GAP);
     virtual void run() override;
     void print_statistics(int runnum=-1);
+
+    const ABSender* get_abw_sender() const;
+    const Pinger* get_pinger() const;
+    const LossBase* get_losser() const;
 private:
     std::unique_ptr<ABSender> m_abw_sender;
     std::unique_ptr<Pinger> m_pinger;
@@ -55,6 +59,7 @@ private:
     float m_curr_abw_est;   // bytes/sec
     timeval m_time_start;
 
+    void chest_sender_single_round(std::unique_ptr<std::list<MeasurementBundle>>&, int runnum=-1);
     void abw_single_round(std::list<MeasurementBundle> *);
     void setup();
     void setup_abw();

@@ -18,14 +18,19 @@ void usage(const char *proggie)
     std::cerr << "      -r <float> set convergence resolution (default: 500.0 kb/s)" << std::endl;
     std::cerr << "      -s <int>   mean inter-stream spacing (default: 50 milliseconds)" << std::endl;
 
+    std::cerr << "      -o <filename> specify output file for ChEst estimation" << std::endl;
+    std::cerr << "      -Y set ChEst output to yaml format" << std::endl;
+    std::cerr << "      -g <filename> specify file for ELR stats initialisazion" << std::endl;
+    std::cerr << "      -e <filename> specify file to save ELR stats" << std::endl;
+
     std::cerr << "   for both sender and receiver:" << std::endl;
     std::cerr << "      -p <port>  specify control port (" << DEST_CTRL_PORT << ")" << std::endl;
     std::cerr << "      -P <port>  specify probe port (" << DEST_PORT << ")" << std::endl;
     std::cerr << "      -v         increase verbosity" << std::endl;
-    std::cerr << "      -u         use round-robin scheduler for threads(?) *****" << std::endl;
-#if HAVE_PCAP_H
-    std::cerr << "      -x <str>   pcap interface name (no default)" << std::endl;
-#endif
+//    std::cerr << "      -u         use round-robin scheduler for threads(?) *****" << std::endl;
+//#if HAVE_PCAP_H
+//    std::cerr << "      -x <str>   pcap interface name (no default)" << std::endl;
+//#endif
 }
 
 
@@ -62,7 +67,12 @@ int main(int argc, char **argv)
 #endif
     bool sched_up = false;
 
-    while ((c = getopt(argc, argv, "c:i:l:m:n:p:P:RS:r:s:vux:")) != EOF)
+    std::string elr_stats_file_read;
+    std::string elr_stats_file_write;
+    std::string chest_res_file;
+    bool is_yaml_output = false;
+
+    while ((c = getopt(argc, argv, "c:i:l:m:n:p:P:RS:r:s:x:Yo:g:e:h")) != EOF)
     {
         switch(c)
         {
@@ -102,17 +112,24 @@ int main(int argc, char **argv)
         case 's':
             inter_stream_spacing = atoi(optarg) * 1000; // input as millisec, internal as microsec
             break;
-        case 'u':
-            sched_up = true;
-            break;
         case 'v':
             verbose++;
             break;
-#if HAVE_PCAP_H
-        case 'x':
-            pcap_dev = optarg;
+        case 'Y':
+            is_yaml_output = true;
             break;
-#endif
+        case 'o':
+            chest_res_file = optarg;
+            break;
+        case 'g':
+            elr_stats_file_read = optarg;
+            break;
+        case 'e':
+            elr_stats_file_write = optarg;
+            break;
+        case 'h':
+            usage(argv[0]);
+            return 0;
         default:
             usage(argv[0]);
             exit (-1);
@@ -175,37 +192,28 @@ int main(int argc, char **argv)
         return (0);
     }
 
-
-#if HAVE_SCHED_SETSCHEDULER
-    if (sched_up)
-    {
-        // try to raise our scheduling priority.  
-        int maxprio = sched_get_priority_max(SCHED_RR);
-        struct sched_param sp = { maxprio };
-        if (sched_setscheduler(0, SCHED_RR, &sp) == 0)
-        {
-            sched_getparam(0, &sp);
-            std::cout << "using real-time round-robin scheduler";
-            if (verbose > 1)
-                std::cout << "scheduler/param: " << sched_getscheduler(0) << '/' << sp.sched_priority;
-            std::cout << "." << std::endl;
-        }
-        else
-        {
-            std::cout << "using default scheduler." << std::endl;
-        }
-    }
-#endif
-
     if (sender){
         Pinger pinger(dstip.c_str());
         LossElr losser;
-        chest = std::make_unique<ChestSender>(*ab_sender, pinger, losser);
+        if (elr_stats_file_read.length() != 0){
+            losser.deserialize_from_file(elr_stats_file_read);  // fill pre-collected stats
+        }
+        chest = std::make_unique<ChestSender>(ab_sender, pinger, losser);
     } else {
-        chest = std::make_unique<ChestReceiver>(*ab_receiver);
+        chest = std::make_unique<ChestReceiver>(ab_receiver);
+    }
+
+    chest->set_verbosity(verbose);
+    chest->set_output_format(is_yaml_output);
+    if (chest_res_file.length() != 0){
+        chest->set_output_file(chest_res_file);
     }
 
     chest->run();
+    if (sender && elr_stats_file_write.length() != 0){;
+        dynamic_cast<ChestSender*>(chest.get())->get_losser()->serialize_to_file(elr_stats_file_write);
+    }
     google::protobuf::ShutdownProtobufLibrary();
-    return (0);
+    std::cerr << "ChEst exitting!" << std::endl;
+    return 0;
 }
