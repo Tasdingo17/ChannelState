@@ -211,6 +211,7 @@ int main(int argc, char **argv)
 
     chest->run();
     if (sender && elr_stats_file_write.length() != 0){;
+        std::cerr << "Serializing ELR stats" << std::endl;  // not always reached when supposed...
         dynamic_cast<ChestSender*>(chest.get())->get_losser()->serialize_to_file(elr_stats_file_write);
     }
     google::protobuf::ShutdownProtobufLibrary();

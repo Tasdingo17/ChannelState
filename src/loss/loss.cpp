@@ -66,7 +66,8 @@ int get_millisec(const timeval& tv){
     if (tv.tv_sec == -1){
         return -1;  
     }
-    return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+    int res = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+    return (res < 0 || res > 1000000) ? -1 : res;
 }
 
 
@@ -203,8 +204,8 @@ namespace YAML {
             if(!node.IsMap()) {
             return false;
             }
-            rhs.nlost = node["nlost"].as<int>();
-            rhs.ntotal = node["ntotal"].as<int>();
+            rhs.nlost = node["nlost"].as<unsigned int>();
+            rhs.ntotal = node["ntotal"].as<unsigned int>();
             return true;
         }
     };
