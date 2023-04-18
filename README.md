@@ -10,16 +10,19 @@ By 'channel state' we assume:
 
 ## Prerequisites
 
+Libpcap, cmake
+
+git clone
 git submodule init
 git submodule update
 
-Protobuf installed
+configure yaz (cd to yaz; ./configure)
+
+Protobuf installed (sudo apt install protobuf-compiler)
 
 yaml-cpp installed
 
 ## Build
-
-cmake required
 
 ```
 mkdir build
