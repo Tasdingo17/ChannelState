@@ -10,7 +10,8 @@ By 'channel state' we assume:
 
 ## Prerequisites
 
-git submodule init?
+git submodule init
+git submodule update
 
 Protobuf installed
 
