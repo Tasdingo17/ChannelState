@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     bool receiver = false;
     int min_pkt_size = 200;
     int init_pkt_size = 1500;
-    int init_spacing = MIN_SPACE;
+    int init_spacing = (MIN_SPACE + MAX_SPACE) / 2;;
     int stream_length = 50;
     int n_streams = 1;
     int inter_stream_spacing = 50000;
@@ -72,7 +72,7 @@ int main(int argc, char **argv)
     std::string chest_res_file;
     bool is_yaml_output = false;
 
-    while ((c = getopt(argc, argv, "c:i:l:m:n:p:P:RS:r:s:x:Yo:g:e:h")) != EOF)
+    while ((c = getopt(argc, argv, "c:i:l:m:n:p:P:RS:r:s:x:Yo:g:e:hv")) != EOF)
     {
         switch(c)
         {

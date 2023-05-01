@@ -145,6 +145,9 @@ void ChestSender::print_stats_yaml(int runnum) const{
     } else {
         *m_ostream << "    loss_local: null\n";
     }
+    if (m_verbose){
+        *m_ostream << "    overhead_mbit: " << m_abw_sender->get_last_round_overhead() / 1000000.0 << '\n';
+    }
     *m_ostream << std::endl;
 }
 

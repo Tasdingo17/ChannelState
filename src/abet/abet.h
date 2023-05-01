@@ -21,6 +21,7 @@ public:
     virtual bool processOneRoundRes(std::list<MeasurementBundle> *) = 0;
     virtual void resetRound() = 0;
     virtual float get_current_estimation() const = 0;
+    virtual unsigned int get_last_round_overhead() const = 0;
     virtual ~ABSender() = default;
 };
 
