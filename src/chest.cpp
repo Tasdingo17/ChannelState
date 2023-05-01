@@ -8,6 +8,17 @@
 // for exponential moving avarage
 #define ABW_ALPHA 0.9
 
+/**
+ * Returns a timestamp with microsecond resolution.
+ */
+static uint64_t utime(void) {
+    struct timeval now;
+    return gettimeofday(&now, NULL) != 0
+        ? 0
+        : now.tv_sec * 1000000 + now.tv_usec;
+
+}
+
 /////////////////////////// EndPt
 ChestEndPt::ChestEndPt(): m_ostream(&std::cout, [](std::ostream*){}){};
 
@@ -63,13 +74,13 @@ void ChestReceiver::cleanup(){
 ChestSender::ChestSender(const ABSender& abw_sender, Pinger& pinger,
                          const LossBase& losser, int measurment_gap):
 m_abw_sender(abw_sender.clone()), m_pinger(pinger.to_unique_ptr()), m_losser(losser.clone()),
-m_measurment_gap(measurment_gap), m_curr_abw_est(0)
+m_measurment_gap(measurment_gap), m_curr_abw_est(0), m_ping_gap(DEFAULT_MEASURMENT_GAP)
 {}
 
 ChestSender::ChestSender(std::unique_ptr<ABSender>& abw_sender, Pinger& pinger,
                 const LossBase& losser, int measurment_gap):
 m_abw_sender(std::move(abw_sender)), m_pinger(pinger.to_unique_ptr()), m_losser(losser.clone()),
-m_measurment_gap(measurment_gap), m_curr_abw_est(0)
+m_measurment_gap(measurment_gap), m_curr_abw_est(0), m_ping_gap(DEFAULT_MEASURMENT_GAP)
 {}
 
 
@@ -77,6 +88,21 @@ void ChestSender::cleanup(){
     m_abw_sender->cleanup();
 }
 
+void ChestSender::set_measurment_gap(int meas_gap){
+    m_measurment_gap = meas_gap;
+}
+
+int ChestSender::get_measurment_gap() const{
+    return m_measurment_gap;
+}
+
+void ChestSender::set_ping_gap(int ping_gap){
+    m_ping_gap = ping_gap;
+}
+
+int ChestSender::get_ping_gap() const{
+    return m_ping_gap;
+}
 
 unsigned ChestSender::get_mean_rtt_round() const{
     if (m_rtt_vec_round.size() == 0){
@@ -147,23 +173,28 @@ void ChestSender::run(){
     std::unique_ptr<std::list<MeasurementBundle>> 
     measurement_list = std::make_unique<std::list<MeasurementBundle>>();
     auto prev_handler = signal(SIGINT, stop_handler::stop_chest);  // break from loop after SIGINT
+    uint64_t tmp_time = 0;
     for(int runnum=0; !stop_handler::chest_stopped; runnum++){
         if (m_verbose && runnum % 10 == 0 && m_output_file.length() != 0){
             // print round number to cerr to ensure working
             std::cerr << "Round: " << runnum << std::endl;
         }
 
+        tmp_time = utime();
         try{
             chest_sender_single_round(measurement_list, runnum);
             print_statistics(runnum);
             measurement_list->clear();
             m_rtt_vec_round.clear();
-            usleep(m_measurment_gap);   //FIXME: intra-stream sleep time
         } catch (std::exception& e) {
             std::cerr << e.what() << std::endl;
             break;
         } catch (...) {
             break;
+        }
+
+        if (utime() - tmp_time < m_measurment_gap){
+            usleep(m_measurment_gap - (utime() - tmp_time));
         }
     }
     signal(SIGINT, prev_handler);   // return default handler
@@ -213,10 +244,13 @@ chest_sender_single_round(std::unique_ptr<std::list<MeasurementBundle>>& measure
     });
 
     while (!is_future_ready(abet_res)){     // ping while abet works
-        process_ping_res(ping_res.get());
+        auto tmp_res = ping_res.get();
+        process_ping_res(tmp_res);
         ping_res = std::async(std::launch::async, 
-        [this](){ 
-            usleep(m_measurment_gap);
+        [this, &tmp_res](){ 
+            if ((0 <= tmp_res.rtt) && (tmp_res.rtt < m_ping_gap)){
+                usleep(m_ping_gap - tmp_res.rtt);
+            }
             return m_pinger->ping(); 
         });
     }

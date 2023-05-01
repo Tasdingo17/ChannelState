@@ -9,7 +9,7 @@
 #include <functional>
 #include <vector>
 
-// micriseconds
+// microseconds
 #define DEFAULT_MEASURMENT_GAP 100000
 
 class ChestEndPt{
@@ -51,11 +51,16 @@ public:
     const ABSender* get_abw_sender() const;
     const Pinger* get_pinger() const;
     const LossBase* get_losser() const;
+    void set_ping_gap(int ping_gap);
+    int get_ping_gap() const;
+    void set_measurment_gap(int meas_gap);
+    int get_measurment_gap() const;
 private:
     std::unique_ptr<ABSender> m_abw_sender;
     std::unique_ptr<Pinger> m_pinger;
     std::unique_ptr<LossBase> m_losser;
-    int m_measurment_gap;
+    int m_measurment_gap;   // microseconds
+    int m_ping_gap;         // microseconds
     PingStat m_ping_stats;
     float m_curr_abw_est;   // bytes/sec
     timeval m_time_start;
