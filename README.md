@@ -12,11 +12,11 @@ By 'channel state' we assume:
 
 Libpcap, cmake
 
-git clone
-git submodule init
-git submodule update
+git clone  
+git submodule init  
+git submodule update  
 
-configure yaz (cd to yaz; ./configure)
+configure yaz (cd to src/abet/yaz; ./configure)
 
 Protobuf installed (sudo apt install protobuf-compiler)
 
