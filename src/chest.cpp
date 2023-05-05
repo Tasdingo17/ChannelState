@@ -54,16 +54,16 @@ m_abw_receiver(abw_receiver.clone()){};
 ChestReceiver::ChestReceiver(std::unique_ptr<ABReceiver>& abw_receiver):
 m_abw_receiver(std::move(abw_receiver)) {};
 
-// TODO: SIGINT handler to stop Receiver
+// TODO: SIGINT handler to correctly stop Receiver
 void ChestReceiver::run(){
-    if (m_abw_receiver->validate()){
-        try{
-            auto abet_res = std::async(std::launch::async, [this](){m_abw_receiver->run();});
-        } catch (std::exception& e){
-            std::cerr << e.what() << std::endl;
-        } catch (...){
-        }
+    if (!m_abw_receiver->validate()){
+        return;
     }
+    try{
+        auto abet_res = std::async(std::launch::async, [this](){m_abw_receiver->run();});
+    } catch (std::exception& e){
+        std::cerr << e.what() << std::endl;
+    } catch (...) {}
 }
 
 void ChestReceiver::cleanup(){

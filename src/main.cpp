@@ -27,6 +27,7 @@ void usage(const char *proggie)
     std::cerr << "      -p <port>  specify control port (" << DEST_CTRL_PORT << ")" << std::endl;
     std::cerr << "      -P <port>  specify probe port (" << DEST_PORT << ")" << std::endl;
     std::cerr << "      -v         increase verbosity" << std::endl;
+    std::cerr << "      -b         decrease CPU utilization but also decrease yaz ABW estimation accuracy" << std::endl;
 //    std::cerr << "      -u         use round-robin scheduler for threads(?) *****" << std::endl;
 //#if HAVE_PCAP_H
 //    std::cerr << "      -x <str>   pcap interface name (no default)" << std::endl;
@@ -62,6 +63,7 @@ int main(int argc, char **argv)
     int inter_stream_spacing = 50000;
     int verbose = 0;
     float resolution = 500000.0;
+    bool yaz_high_accuracy = true;
 #if HAVE_PCAP_H
     std::string pcap_dev = "";
 #endif
@@ -72,7 +74,7 @@ int main(int argc, char **argv)
     std::string chest_res_file;
     bool is_yaml_output = false;
 
-    while ((c = getopt(argc, argv, "c:i:l:m:n:p:P:RS:r:s:x:Yo:g:e:hv")) != EOF)
+    while ((c = getopt(argc, argv, "c:i:l:m:n:p:P:RS:r:s:x:yo:g:e:hvb")) != EOF)
     {
         switch(c)
         {
@@ -115,7 +117,7 @@ int main(int argc, char **argv)
         case 'v':
             verbose++;
             break;
-        case 'Y':
+        case 'y':
             is_yaml_output = true;
             break;
         case 'o':
@@ -126,6 +128,9 @@ int main(int argc, char **argv)
             break;
         case 'e':
             elr_stats_file_write = optarg;
+            break;
+        case 'b':
+            yaz_high_accuracy = false;
             break;
         case 'h':
             usage(argv[0]);
@@ -180,6 +185,7 @@ int main(int argc, char **argv)
         ys->setCtrlDest(dest_control);
         ys->setProbeDest(dest_port);
         ys->setVerbosity(verbose);
+        ys->setAccuracy(yaz_high_accuracy);
     #if HAVE_PCAP_H
         ys->setPcapDev(pcap_dev);
     #endif
